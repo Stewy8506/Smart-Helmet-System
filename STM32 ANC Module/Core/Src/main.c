@@ -24,6 +24,7 @@
 #include "audio_pipeline.h"
 #include "buffer_manager.h"
 #include "pin_config.h"
+#include "uart_parser.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -109,6 +110,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    UartParser_Process();
     BufferManager_Process();
   }
   /* USER CODE END 3 */

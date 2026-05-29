@@ -1,8 +1,8 @@
 #include "audio_pipeline.h"
 #include "pin_config.h"
+#include "uart_parser.h"
 #include <string.h>
 
-int16_t uart_rx_buffer[DMA_BUFFER_SIZE];
 int32_t mic_rx_buffer[DMA_BUFFER_SIZE];
 int16_t dac_tx_buffer[DMA_BUFFER_SIZE];
 
@@ -185,9 +185,10 @@ void HAL_I2S_MspInit(I2S_HandleTypeDef* i2sHandle)
 
 void AudioPipeline_Init(void)
 {
-    memset(uart_rx_buffer, 0, sizeof(uart_rx_buffer));
     memset(mic_rx_buffer, 0, sizeof(mic_rx_buffer));
     memset(dac_tx_buffer, 0, sizeof(dac_tx_buffer));
+
+    UartParser_Init();
 
     MX_DMA_Init();
     MX_USART1_UART_Init();
@@ -198,10 +199,9 @@ void AudioPipeline_Init(void)
 void AudioPipeline_Start(void)
 {
     // Start DMA streams
-    // Note: To keep streams perfectly aligned, I2S DAC is usually the master clock driving the loop.
-    // In STM32 I2S, the DMA full/half transfer callbacks of the TX stream will drive the processing loop.
+    // UART now fills the raw DMA buffer which is parsed in the main loop
+    HAL_UART_Receive_DMA(&huart1, uart_dma_buffer, 4096); 
 
-    HAL_UART_Receive_DMA(&huart1, (uint8_t*)uart_rx_buffer, DMA_BUFFER_SIZE * 2); // Byte size
     HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)mic_rx_buffer, DMA_BUFFER_SIZE * 2);   // Word size handled gracefully
     HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)dac_tx_buffer, DMA_BUFFER_SIZE);      // Half-word size
 }

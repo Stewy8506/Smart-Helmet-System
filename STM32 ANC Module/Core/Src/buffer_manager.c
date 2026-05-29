@@ -1,5 +1,6 @@
 #include "buffer_manager.h"
 #include "audio_pipeline.h"
+#include "uart_parser.h"
 
 volatile bool is_anc_on = false; // False = Transparency, True = Prototype ANC
 
@@ -25,14 +26,25 @@ void BufferManager_Process(void)
         return; // Nothing to process
     }
 
+    // Pull AUDIO_CHUNK_SIZE samples from BT FIFO
+    int16_t bt_buffer[AUDIO_CHUNK_SIZE];
+    int read_count = UartParser_ReadSamples(bt_buffer, AUDIO_CHUNK_SIZE);
+    
+    // Drift compensation: if we didn't get enough samples, duplicate the last one (or mute)
+    if (read_count < AUDIO_CHUNK_SIZE) {
+        for (int i = read_count; i < AUDIO_CHUNK_SIZE; i++) {
+            bt_buffer[i] = (read_count > 0) ? bt_buffer[read_count - 1] : 0;
+        }
+    }
+
     // Process AUDIO_CHUNK_SIZE samples (L,R interleaved)
     for (int i = 0; i < AUDIO_CHUNK_SIZE; i += 2)
     {
         int buf_idx = offset + i;
         
         // 1. Get Bluetooth Music (16-bit interleaved)
-        int16_t bt_l = uart_rx_buffer[buf_idx];
-        int16_t bt_r = uart_rx_buffer[buf_idx + 1];
+        int16_t bt_l = bt_buffer[i];
+        int16_t bt_r = bt_buffer[i + 1];
 
         // 2. Get INMP441 Mic (32-bit slot, data in top 24 bits)
         // Extract 16-bit MSB from the 32-bit I2S frame

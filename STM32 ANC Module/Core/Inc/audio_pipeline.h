@@ -18,7 +18,6 @@
 // Double buffer for DMA (Half-transfer and Full-transfer)
 #define DMA_BUFFER_SIZE  (AUDIO_CHUNK_SIZE * 2)
 
-extern int16_t uart_rx_buffer[DMA_BUFFER_SIZE];
 extern int32_t mic_rx_buffer[DMA_BUFFER_SIZE];
 extern int16_t dac_tx_buffer[DMA_BUFFER_SIZE];
 
