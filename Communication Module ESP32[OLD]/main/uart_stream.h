@@ -17,3 +17,6 @@ void uart_stream_init(void);
 // Send interleaved stereo samples (int16_t)
 // samples = number of int16_t values (L,R interleaved)
 void uart_stream_send(int16_t *data, int samples);
+
+// Send configuration packet
+void uart_stream_send_config(uint32_t sample_rate);

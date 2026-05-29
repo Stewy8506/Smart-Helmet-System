@@ -7,8 +7,8 @@
 int32_t mic_rx_buffer[DMA_BUFFER_SIZE];
 int16_t dac_tx_buffer[DMA_BUFFER_SIZE];
 
-volatile uint8_t process_audio_half = 0;
-volatile uint8_t process_audio_full = 0;
+RingBuffer_t Mic_RingBuffer;
+RingBuffer_t Dac_RingBuffer;
 
 UART_HandleTypeDef huart1;
 I2S_HandleTypeDef hi2s2;
@@ -52,14 +52,14 @@ static void MX_USART1_UART_Init(void)
     }
 }
 
-static void MX_I2S2_Init(void)
+static void MX_I2S2_Init(uint32_t audio_freq)
 {
     hi2s2.Instance = MIC_I2S;
     hi2s2.Init.Mode = I2S_MODE_MASTER_RX;
     hi2s2.Init.Standard = I2S_STANDARD_PHILIPS;
     hi2s2.Init.DataFormat = I2S_DATAFORMAT_32B;
     hi2s2.Init.MCLKOutput = I2S_MCLKOUTPUT_DISABLE;
-    hi2s2.Init.AudioFreq = I2S_AUDIOFREQ_44K;
+    hi2s2.Init.AudioFreq = audio_freq;
     hi2s2.Init.CPOL = I2S_CPOL_LOW;
     hi2s2.Init.ClockSource = I2S_CLOCK_PLL;
     hi2s2.Init.FullDuplexMode = I2S_FULLDUPLEXMODE_DISABLE;
@@ -69,14 +69,14 @@ static void MX_I2S2_Init(void)
     }
 }
 
-static void MX_I2S3_Init(void)
+static void MX_I2S3_Init(uint32_t audio_freq)
 {
     hi2s3.Instance = DAC_I2S;
     hi2s3.Init.Mode = I2S_MODE_MASTER_TX;
     hi2s3.Init.Standard = I2S_STANDARD_PHILIPS;
     hi2s3.Init.DataFormat = I2S_DATAFORMAT_16B;
     hi2s3.Init.MCLKOutput = I2S_MCLKOUTPUT_DISABLE;
-    hi2s3.Init.AudioFreq = I2S_AUDIOFREQ_44K;
+    hi2s3.Init.AudioFreq = audio_freq;
     hi2s3.Init.CPOL = I2S_CPOL_LOW;
     hi2s3.Init.ClockSource = I2S_CLOCK_PLL;
     hi2s3.Init.FullDuplexMode = I2S_FULLDUPLEXMODE_DISABLE;
@@ -189,51 +189,100 @@ void AudioPipeline_Init(void)
     memset(mic_rx_buffer, 0, sizeof(mic_rx_buffer));
     memset(dac_tx_buffer, 0, sizeof(dac_tx_buffer));
 
+    RingBuffer_Init(&Mic_RingBuffer);
+    RingBuffer_Init(&Dac_RingBuffer);
+
     UartParser_Init();
 
     MX_DMA_Init();
     MX_USART1_UART_Init();
-    MX_I2S2_Init();
-    MX_I2S3_Init();
+    MX_I2S2_Init(I2S_AUDIOFREQ_44K); // Default
+    MX_I2S3_Init(I2S_AUDIOFREQ_44K);
 }
 
 void AudioPipeline_Start(void)
 {
-    // Start DMA streams
-    // UART now fills the raw DMA buffer which is parsed in the main loop
     HAL_UART_Receive_DMA(&huart1, uart_dma_buffer, 4096); 
-
-    HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)mic_rx_buffer, DMA_BUFFER_SIZE * 2);   // Word size handled gracefully
-    HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)dac_tx_buffer, DMA_BUFFER_SIZE);      // Half-word size
+    HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)mic_rx_buffer, DMA_BUFFER_SIZE * 2);
+    HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)dac_tx_buffer, DMA_BUFFER_SIZE);
 }
 
-// Drive loop based on DAC DMA
+void AudioPipeline_SetSampleRate(uint32_t sample_rate)
+{
+    uint32_t i2s_freq = I2S_AUDIOFREQ_44K;
+    if (sample_rate == 48000) {
+        i2s_freq = I2S_AUDIOFREQ_48K;
+    }
+
+    // Stop streams
+    HAL_I2S_DMAStop(&hi2s2);
+    HAL_I2S_DMAStop(&hi2s3);
+
+    // Re-init with new freq
+    HAL_I2S_DeInit(&hi2s2);
+    HAL_I2S_DeInit(&hi2s3);
+    
+    MX_I2S2_Init(i2s_freq);
+    MX_I2S3_Init(i2s_freq);
+
+    // Clear buffers
+    RingBuffer_Clear(&Mic_RingBuffer);
+    RingBuffer_Clear(&Dac_RingBuffer);
+
+    // Notify ANC engine (TODO: switch coefficients)
+    // extern void ANC_SetSampleRate(uint32_t sr);
+    // ANC_SetSampleRate(sample_rate);
+
+    // Restart
+    HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)mic_rx_buffer, DMA_BUFFER_SIZE * 2);
+    HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)dac_tx_buffer, DMA_BUFFER_SIZE);
+}
+
+static void ProcessMicData(int startIndex) {
+    int16_t extracted[AUDIO_CHUNK_SIZE];
+    for (int i = 0; i < AUDIO_CHUNK_SIZE; i++) {
+        // Extract 16-bit MSB from 32-bit I2S data
+        extracted[i] = (int16_t)(mic_rx_buffer[startIndex + i] >> 16);
+    }
+    RingBuffer_Write(&Mic_RingBuffer, extracted, AUDIO_CHUNK_SIZE);
+}
+
+void HAL_I2S_RxHalfCpltCallback(I2S_HandleTypeDef *hi2s) {
+    if (hi2s->Instance == MIC_I2S) {
+        ProcessMicData(0);
+    }
+}
+
+void HAL_I2S_RxCpltCallback(I2S_HandleTypeDef *hi2s) {
+    if (hi2s->Instance == MIC_I2S) {
+        ProcessMicData(AUDIO_CHUNK_SIZE);
+    }
+}
+
+static void ProcessDacData(int startIndex) {
+    if (RingBuffer_GetCount(&Dac_RingBuffer) >= AUDIO_CHUNK_SIZE) {
+        RingBuffer_Read(&Dac_RingBuffer, &dac_tx_buffer[startIndex], AUDIO_CHUNK_SIZE);
+    } else {
+        // Underflow: Output silence
+        memset(&dac_tx_buffer[startIndex], 0, AUDIO_CHUNK_SIZE * sizeof(int16_t));
+    }
+}
+
 void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef *hi2s)
 {
-    if (hi2s->Instance == DAC_I2S)
-    {
-        process_audio_half = 1;
+    if (hi2s->Instance == DAC_I2S) {
+        ProcessDacData(0);
     }
 }
 
 void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef *hi2s)
 {
-    if (hi2s->Instance == DAC_I2S)
-    {
-        process_audio_full = 1;
+    if (hi2s->Instance == DAC_I2S) {
+        ProcessDacData(AUDIO_CHUNK_SIZE);
     }
 }
 
 // DMA IRQ Handlers
-void DMA2_Stream2_IRQHandler(void)
-{
-    HAL_DMA_IRQHandler(&hdma_usart1_rx);
-}
-void DMA1_Stream3_IRQHandler(void)
-{
-    HAL_DMA_IRQHandler(&hdma_spi2_rx);
-}
-void DMA1_Stream5_IRQHandler(void)
-{
-    HAL_DMA_IRQHandler(&hdma_spi3_tx);
-}
+void DMA2_Stream2_IRQHandler(void) { HAL_DMA_IRQHandler(&hdma_usart1_rx); }
+void DMA1_Stream3_IRQHandler(void) { HAL_DMA_IRQHandler(&hdma_spi2_rx); }
+void DMA1_Stream5_IRQHandler(void) { HAL_DMA_IRQHandler(&hdma_spi3_tx); }

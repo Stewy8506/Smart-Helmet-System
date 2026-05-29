@@ -61,3 +61,23 @@ void uart_stream_send(int16_t *data, int samples)
     // Ensure transmission completes before sending next packet (prevents burst jitter)
     uart_wait_tx_done(UART_STREAM_PORT, portMAX_DELAY);
 }
+
+void uart_stream_send_config(uint32_t sample_rate)
+{
+    uint16_t sync = 0xAA56; // Config packet sync word
+    uint16_t len = 4; // 4 bytes for sample rate
+
+    int offset = 0;
+
+    memcpy(&tx_buffer[offset], &sync, 2);
+    offset += 2;
+
+    memcpy(&tx_buffer[offset], &len, 2);
+    offset += 2;
+
+    memcpy(&tx_buffer[offset], &sample_rate, 4);
+    offset += 4;
+
+    uart_write_bytes(UART_STREAM_PORT, (const char *)tx_buffer, offset);
+    uart_wait_tx_done(UART_STREAM_PORT, portMAX_DELAY);
+}

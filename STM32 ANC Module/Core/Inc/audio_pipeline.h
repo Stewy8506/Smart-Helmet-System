@@ -1,16 +1,9 @@
-/**
- * @file audio_pipeline.h
- * @brief Hardware initialization and DMA management for the audio pipeline.
- * 
- * This module handles setting up the UART for receiving Bluetooth audio,
- * I2S2 for receiving the microphone signal, and I2S3 for transmitting
- * to the DAC. It relies on circular DMA to transfer data with zero CPU overhead.
- */
 #ifndef AUDIO_PIPELINE_H
 #define AUDIO_PIPELINE_H
 
 #include <stdint.h>
 #include "stm32f4xx_hal.h"
+#include "ring_buffer.h"
 
 // 256 int16_t samples = 128 stereo frames (Left, Right)
 #define AUDIO_CHUNK_SIZE 256
@@ -21,10 +14,11 @@
 extern int32_t mic_rx_buffer[DMA_BUFFER_SIZE];
 extern int16_t dac_tx_buffer[DMA_BUFFER_SIZE];
 
-extern volatile uint8_t process_audio_half;
-extern volatile uint8_t process_audio_full;
+extern RingBuffer_t Mic_RingBuffer;
+extern RingBuffer_t Dac_RingBuffer;
 
 void AudioPipeline_Init(void);
 void AudioPipeline_Start(void);
+void AudioPipeline_SetSampleRate(uint32_t sample_rate);
 
 #endif // AUDIO_PIPELINE_H

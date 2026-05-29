@@ -41,6 +41,27 @@ static void a2dp_event_handler(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *par
 
     case ESP_A2D_AUDIO_CFG_EVT:
         ESP_LOGI(TAG, "A2DP audio config received");
+        
+        // Check if it's SBC and extract sample rate
+        esp_a2d_cb_param_t *a2d = param;
+        if (a2d->audio_cfg.mcc.type == ESP_A2D_MCT_SBC) {
+            uint32_t sample_rate = 44100;
+            uint8_t samp_freq = a2d->audio_cfg.mcc.cie.sbc[0];
+            
+            // Extract from SBC Codec Specific Information Elements (CIE)
+            // Bit 7: 16kHz, Bit 6: 32kHz, Bit 5: 44.1kHz, Bit 4: 48kHz
+            if (samp_freq & 0x10) {
+                sample_rate = 48000;
+            } else if (samp_freq & 0x20) {
+                sample_rate = 44100;
+            }
+            
+            ESP_LOGI(TAG, "Negotiated sample rate: %lu Hz", sample_rate);
+            
+            // Notify STM32 via UART config packet
+            extern void uart_stream_send_config(uint32_t sample_rate);
+            uart_stream_send_config(sample_rate);
+        }
         break;
 
     default:

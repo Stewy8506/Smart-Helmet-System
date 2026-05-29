@@ -1,6 +1,8 @@
 #include "buffer_manager.h"
 #include "audio_pipeline.h"
 #include "uart_parser.h"
+#include "ring_buffer.h"
+#include "anc_engine.h"
 
 volatile bool is_anc_on = false; // False = Transparency, True = Prototype ANC
 
@@ -13,63 +15,44 @@ static int delay_index = 0;
 
 void BufferManager_Process(void)
 {
-    int offset = 0;
-    
-    // Determine which half of the buffer to process
-    if (process_audio_half) {
-        offset = 0;
-        process_audio_half = 0;
-    } else if (process_audio_full) {
-        offset = AUDIO_CHUNK_SIZE;
-        process_audio_full = 0;
-    } else {
-        return; // Nothing to process
+    // Wait until we have a full chunk of Mic data ready
+    if (RingBuffer_GetCount(&Mic_RingBuffer) < AUDIO_CHUNK_SIZE) {
+        return; // Not enough data yet
     }
 
-    // Pull AUDIO_CHUNK_SIZE samples from BT FIFO
-    int16_t bt_buffer[AUDIO_CHUNK_SIZE];
-    int read_count = UartParser_ReadSamples(bt_buffer, AUDIO_CHUNK_SIZE);
-    
-    // Drift compensation: if we didn't get enough samples, duplicate the last one (or mute)
-    if (read_count < AUDIO_CHUNK_SIZE) {
-        for (int i = read_count; i < AUDIO_CHUNK_SIZE; i++) {
-            bt_buffer[i] = (read_count > 0) ? bt_buffer[read_count - 1] : 0;
-        }
+    // Ensure we also have space in the DAC buffer before processing
+    if (RingBuffer_GetFreeSpace(&Dac_RingBuffer) < AUDIO_CHUNK_SIZE * 2) {
+        return; // Dac buffer is full, wait for DMA to drain it
     }
 
-    // Process AUDIO_CHUNK_SIZE samples (L,R interleaved)
-    for (int i = 0; i < AUDIO_CHUNK_SIZE; i += 2)
+    int16_t mic_chunk[AUDIO_CHUNK_SIZE];
+    int16_t out_chunk[AUDIO_CHUNK_SIZE * 2]; // Stereo interleaved
+
+    // Read Mic data
+    RingBuffer_Read(&Mic_RingBuffer, mic_chunk, AUDIO_CHUNK_SIZE);
+
+    // Read Bluetooth data (if available, otherwise fill with 0)
+    int16_t bt_buffer[AUDIO_CHUNK_SIZE * 2]; // Stereo
+    int read_count = UartParser_ReadSamples(bt_buffer, AUDIO_CHUNK_SIZE * 2);
+    
+    // Pad with silence if not enough BT data
+    for (int i = read_count; i < AUDIO_CHUNK_SIZE * 2; i++) {
+        bt_buffer[i] = 0;
+    }
+
+    // Pass mic chunk through ANC engine to get anti-noise
+    int16_t anti_noise_chunk[AUDIO_CHUNK_SIZE];
+    ANC_ProcessBlock(mic_chunk, anti_noise_chunk, AUDIO_CHUNK_SIZE);
+
+    // Process chunk
+    for (int i = 0; i < AUDIO_CHUNK_SIZE; i++)
     {
-        int buf_idx = offset + i;
-        
-        // 1. Get Bluetooth Music (16-bit interleaved)
-        int16_t bt_l = bt_buffer[i];
-        int16_t bt_r = bt_buffer[i + 1];
+        int16_t bt_l = bt_buffer[i * 2];
+        int16_t bt_r = bt_buffer[i * 2 + 1];
 
-        // 2. Get INMP441 Mic (32-bit slot, data in top 24 bits)
-        // Extract 16-bit MSB from the 32-bit I2S frame
-        int32_t mic_raw = mic_rx_buffer[buf_idx]; 
-        int16_t mic = (int16_t)(mic_raw >> 16); 
-
-        int32_t out_l, out_r;
-
-        if (is_anc_on) {
-            // ANC Mode: invert mic and mix with delay
-            int16_t delayed_mic = delay_buffer[delay_index];
-            delay_buffer[delay_index] = mic;
-            delay_index = (delay_index + 1) % 64;
-
-            int32_t anc_signal = (int32_t)(-delayed_mic * ANC_GAIN);
-
-            out_l = bt_l + anc_signal;
-            out_r = bt_r + anc_signal;
-        } else {
-            // Transparency Mode: mix mic directly
-            int32_t trans_signal = (int32_t)(mic * TRANSPARENCY_GAIN);
-            
-            out_l = bt_l + trans_signal;
-            out_r = bt_r + trans_signal;
-        }
+        // Mix Bluetooth with generated Anti-Noise
+        int32_t out_l = bt_l + anti_noise_chunk[i];
+        int32_t out_r = bt_r + anti_noise_chunk[i];
 
         // Soft clip
         if (out_l > 32767) out_l = 32767;
@@ -77,8 +60,10 @@ void BufferManager_Process(void)
         if (out_r > 32767) out_r = 32767;
         if (out_r < -32768) out_r = -32768;
 
-        // Output to DAC
-        dac_tx_buffer[buf_idx] = (int16_t)out_l;
-        dac_tx_buffer[buf_idx + 1] = (int16_t)out_r;
+        out_chunk[i * 2] = (int16_t)out_l;
+        out_chunk[i * 2 + 1] = (int16_t)out_r;
     }
+
+    // Push processed data to DAC ring buffer
+    RingBuffer_Write(&Dac_RingBuffer, out_chunk, AUDIO_CHUNK_SIZE * 2);
 }

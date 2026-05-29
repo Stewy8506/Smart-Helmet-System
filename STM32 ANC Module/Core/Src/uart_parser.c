@@ -1,33 +1,24 @@
 #include "uart_parser.h"
 #include "audio_pipeline.h"
+#include "ring_buffer.h"
 #include "stm32f4xx_hal.h"
 #include <string.h>
 
-#define UART_SYNC_WORD 0xAA55
-#define UART_DMA_BUF_SIZE 4096
+#define UART_SYNC_WORD_AUDIO  0xAA55
+#define UART_SYNC_WORD_CONFIG 0xAA56
+#define UART_DMA_BUF_SIZE     4096
 
 uint8_t uart_dma_buffer[UART_DMA_BUF_SIZE];
 uint32_t uart_process_ptr = 0;
 
-int16_t bt_audio_fifo[BT_FIFO_SIZE];
-volatile uint32_t bt_fifo_head = 0;
-volatile uint32_t bt_fifo_tail = 0;
+RingBuffer_t Uart_RingBuffer;
 
 extern DMA_HandleTypeDef hdma_usart1_rx;
 
 void UartParser_Init(void) {
     memset(uart_dma_buffer, 0, sizeof(uart_dma_buffer));
-    bt_fifo_head = 0;
-    bt_fifo_tail = 0;
+    RingBuffer_Init(&Uart_RingBuffer);
     uart_process_ptr = 0;
-}
-
-static void push_fifo(int16_t sample) {
-    uint32_t next_head = (bt_fifo_head + 1) % BT_FIFO_SIZE;
-    if (next_head != bt_fifo_tail) {
-        bt_audio_fifo[bt_fifo_head] = sample;
-        bt_fifo_head = next_head;
-    }
 }
 
 // Called from main loop
@@ -47,7 +38,7 @@ void UartParser_Process(void) {
         uint8_t b1 = uart_dma_buffer[(uart_process_ptr + 1) % UART_DMA_BUF_SIZE];
         uint16_t sync = b0 | (b1 << 8);
 
-        if (sync == UART_SYNC_WORD) {
+        if (sync == UART_SYNC_WORD_AUDIO || sync == UART_SYNC_WORD_CONFIG) {
             uint8_t l0 = uart_dma_buffer[(uart_process_ptr + 2) % UART_DMA_BUF_SIZE];
             uint8_t l1 = uart_dma_buffer[(uart_process_ptr + 3) % UART_DMA_BUF_SIZE];
             uint16_t len = l0 | (l1 << 8); // length in bytes
@@ -64,11 +55,26 @@ void UartParser_Process(void) {
             }
 
             // Packet is complete, parse data
-            for (int i = 0; i < len; i += 2) {
-                uint8_t d0 = uart_dma_buffer[(uart_process_ptr + 4 + i) % UART_DMA_BUF_SIZE];
-                uint8_t d1 = uart_dma_buffer[(uart_process_ptr + 4 + i + 1) % UART_DMA_BUF_SIZE];
-                int16_t sample = (int16_t)(d0 | (d1 << 8));
-                push_fifo(sample);
+            if (sync == UART_SYNC_WORD_AUDIO) {
+                // We'll write to ring buffer in chunks to avoid large intermediate buffers
+                // Since data is interleaved 16-bit, len should be even.
+                int16_t sample;
+                for (int i = 0; i < len; i += 2) {
+                    uint8_t d0 = uart_dma_buffer[(uart_process_ptr + 4 + i) % UART_DMA_BUF_SIZE];
+                    uint8_t d1 = uart_dma_buffer[(uart_process_ptr + 4 + i + 1) % UART_DMA_BUF_SIZE];
+                    sample = (int16_t)(d0 | (d1 << 8));
+                    RingBuffer_Write(&Uart_RingBuffer, &sample, 1);
+                }
+            } else if (sync == UART_SYNC_WORD_CONFIG) {
+                if (len == 4) {
+                    uint8_t d0 = uart_dma_buffer[(uart_process_ptr + 4) % UART_DMA_BUF_SIZE];
+                    uint8_t d1 = uart_dma_buffer[(uart_process_ptr + 5) % UART_DMA_BUF_SIZE];
+                    uint8_t d2 = uart_dma_buffer[(uart_process_ptr + 6) % UART_DMA_BUF_SIZE];
+                    uint8_t d3 = uart_dma_buffer[(uart_process_ptr + 7) % UART_DMA_BUF_SIZE];
+                    uint32_t sample_rate = d0 | (d1 << 8) | (d2 << 16) | (d3 << 24);
+                    
+                    AudioPipeline_SetSampleRate(sample_rate);
+                }
             }
 
             uart_process_ptr = (uart_process_ptr + 4 + len) % UART_DMA_BUF_SIZE;
@@ -79,10 +85,15 @@ void UartParser_Process(void) {
 }
 
 int UartParser_ReadSamples(int16_t *out_buffer, int num_samples) {
-    int count = 0;
-    while (count < num_samples && bt_fifo_tail != bt_fifo_head) {
-        out_buffer[count++] = bt_audio_fifo[bt_fifo_tail];
-        bt_fifo_tail = (bt_fifo_tail + 1) % BT_FIFO_SIZE;
+    if (RingBuffer_GetCount(&Uart_RingBuffer) >= num_samples) {
+        RingBuffer_Read(&Uart_RingBuffer, out_buffer, num_samples);
+        return num_samples;
     }
-    return count;
+    
+    // Read whatever is available
+    int avail = RingBuffer_GetCount(&Uart_RingBuffer);
+    if (avail > 0) {
+        RingBuffer_Read(&Uart_RingBuffer, out_buffer, avail);
+    }
+    return avail;
 }
