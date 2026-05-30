@@ -9,7 +9,7 @@ This module is the core audio processing engine for the Smart Helmet System, run
 Because the STM32F401CCU6 only has two I2S peripherals, we cannot use I2S for the Bluetooth audio link. Instead, the architecture utilizes three separate high-speed serial streams:
 1. **UART1 (RX Only)**: Receives a continuous 2 Mbps stream of packetized True Stereo audio from the ESP32.
 2. **I2S2 / SPI2 (Master RX)**: Reads 32-bit I2S data from the INMP441 environmental microphone.
-3. **I2S3 / SPI3 (Master TX)**: Transmits 16-bit mixed stereo audio to the PCM5102 DAC.
+3. **I2S3 / SPI3 (Master TX)**: Transmits 16-bit mixed stereo audio to the MAX98357A AMP.
 
 ---
 
@@ -21,7 +21,7 @@ Because the STM32F401CCU6 only has two I2S peripherals, we cannot use I2S for th
 | **INMP441 (Mic)** | I2S WS | `PB12` | `AF5_SPI2` | Word Select (L/R clock) |
 | | I2S SCK | `PB13` | `AF5_SPI2` | Bit Clock |
 | | I2S SD | `PB15` | `AF5_SPI2` | Serial Data IN |
-| **PCM5102 (DAC)** | I2S WS | `PA4` | `AF6_SPI3` | Word Select (L/R clock) |
+| **MAX98357A (AMP)** | I2S WS | `PA4` | `AF6_SPI3` | Word Select (L/R clock) |
 | | I2S SCK | `PB3` | `AF6_SPI3` | Bit Clock |
 | | I2S SD | `PB5` | `AF6_SPI3` | Serial Data OUT |
 | **User Input** | Button | `PA0` | `GPIO_MODE_IT` | Pulled UP internally. Triggers on Falling Edge. |
@@ -38,8 +38,8 @@ This file is responsible for the bare-metal hardware configuration.
 - **DMA Configuration**: 
   - `DMA2_Stream2_CH4`: Continuously dumps UART bytes into a `4096-byte` circular buffer in the background.
   - `DMA1_Stream3_CH0`: Pulls 32-bit I2S data from the Mic into a circular buffer.
-  - `DMA1_Stream5_CH0`: Pushes 16-bit I2S data to the DAC.
-- **The Heartbeat**: The entire software loop is driven by the I2S DAC DMA interrupts (`HAL_I2S_TxHalfCpltCallback` and `HAL_I2S_TxCpltCallback`). When the DAC needs more data, it flags the main loop to process the next chunk of audio.
+  - `DMA1_Stream5_CH0`: Pushes 16-bit I2S data to the AMP.
+- **The Heartbeat**: The entire software loop is driven by the I2S AMP DMA interrupts (`HAL_I2S_TxHalfCpltCallback` and `HAL_I2S_TxCpltCallback`). When the AMP needs more data, it flags the main loop to process the next chunk of audio.
 
 ### B. The UART Packet Parser (`uart_parser.c`)
 Because UART is asynchronous, it is prone to data shifts if a byte is dropped. To guarantee True Stereo channel alignment, the ESP32 sends audio wrapped in packets.

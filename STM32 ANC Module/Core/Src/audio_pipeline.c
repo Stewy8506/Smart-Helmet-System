@@ -5,10 +5,10 @@
 #include <string.h>
 
 int32_t mic_rx_buffer[DMA_BUFFER_SIZE];
-int16_t dac_tx_buffer[DMA_BUFFER_SIZE];
+int16_t amp_tx_buffer[DMA_BUFFER_SIZE];
 
 RingBuffer_t Mic_RingBuffer;
-RingBuffer_t Dac_RingBuffer;
+RingBuffer_t Amp_RingBuffer;
 
 UART_HandleTypeDef huart1;
 I2S_HandleTypeDef hi2s2;
@@ -71,7 +71,7 @@ static void MX_I2S2_Init(uint32_t audio_freq)
 
 static void MX_I2S3_Init(uint32_t audio_freq)
 {
-    hi2s3.Instance = DAC_I2S;
+    hi2s3.Instance = AMP_I2S;
     hi2s3.Init.Mode = I2S_MODE_MASTER_TX;
     hi2s3.Init.Standard = I2S_STANDARD_PHILIPS;
     hi2s3.Init.DataFormat = I2S_DATAFORMAT_16B;
@@ -150,21 +150,21 @@ void HAL_I2S_MspInit(I2S_HandleTypeDef* i2sHandle)
         }
         __HAL_LINKDMA(i2sHandle,hdmarx,hdma_spi2_rx);
     }
-    else if(i2sHandle->Instance==DAC_I2S)
+    else if(i2sHandle->Instance==AMP_I2S)
     {
         __HAL_RCC_SPI3_CLK_ENABLE();
         __HAL_RCC_GPIOA_CLK_ENABLE();
         __HAL_RCC_GPIOB_CLK_ENABLE();
         
-        GPIO_InitStruct.Pin = DAC_WS_PIN;
+        GPIO_InitStruct.Pin = AMP_WS_PIN;
         GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
         GPIO_InitStruct.Pull = GPIO_NOPULL;
         GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-        GPIO_InitStruct.Alternate = DAC_I2S_AF;
-        HAL_GPIO_Init(DAC_WS_PORT, &GPIO_InitStruct);
+        GPIO_InitStruct.Alternate = AMP_I2S_AF;
+        HAL_GPIO_Init(AMP_WS_PORT, &GPIO_InitStruct);
 
-        GPIO_InitStruct.Pin = DAC_SCK_PIN|DAC_SD_PIN;
-        HAL_GPIO_Init(DAC_I2S_PORT, &GPIO_InitStruct);
+        GPIO_InitStruct.Pin = AMP_SCK_PIN|AMP_SD_PIN;
+        HAL_GPIO_Init(AMP_I2S_PORT, &GPIO_InitStruct);
 
         hdma_spi3_tx.Instance = DMA1_Stream5;
         hdma_spi3_tx.Init.Channel = DMA_CHANNEL_0;
@@ -187,10 +187,10 @@ void HAL_I2S_MspInit(I2S_HandleTypeDef* i2sHandle)
 void AudioPipeline_Init(void)
 {
     memset(mic_rx_buffer, 0, sizeof(mic_rx_buffer));
-    memset(dac_tx_buffer, 0, sizeof(dac_tx_buffer));
+    memset(amp_tx_buffer, 0, sizeof(amp_tx_buffer));
 
     RingBuffer_Init(&Mic_RingBuffer);
-    RingBuffer_Init(&Dac_RingBuffer);
+    RingBuffer_Init(&Amp_RingBuffer);
 
     UartParser_Init();
 
@@ -204,7 +204,7 @@ void AudioPipeline_Start(void)
 {
     HAL_UART_Receive_DMA(&huart1, uart_dma_buffer, 4096); 
     HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)mic_rx_buffer, DMA_BUFFER_SIZE * 2);
-    HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)dac_tx_buffer, DMA_BUFFER_SIZE);
+    HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)amp_tx_buffer, DMA_BUFFER_SIZE);
 }
 
 void AudioPipeline_SetSampleRate(uint32_t sample_rate)
@@ -227,7 +227,7 @@ void AudioPipeline_SetSampleRate(uint32_t sample_rate)
 
     // Clear buffers
     RingBuffer_Clear(&Mic_RingBuffer);
-    RingBuffer_Clear(&Dac_RingBuffer);
+    RingBuffer_Clear(&Amp_RingBuffer);
 
     // Notify ANC engine (TODO: switch coefficients)
     // extern void ANC_SetSampleRate(uint32_t sr);
@@ -235,7 +235,7 @@ void AudioPipeline_SetSampleRate(uint32_t sample_rate)
 
     // Restart
     HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)mic_rx_buffer, DMA_BUFFER_SIZE * 2);
-    HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)dac_tx_buffer, DMA_BUFFER_SIZE);
+    HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)amp_tx_buffer, DMA_BUFFER_SIZE);
 }
 
 static void ProcessMicData(int startIndex) {
@@ -259,26 +259,26 @@ void HAL_I2S_RxCpltCallback(I2S_HandleTypeDef *hi2s) {
     }
 }
 
-static void ProcessDacData(int startIndex) {
-    if (RingBuffer_GetCount(&Dac_RingBuffer) >= AUDIO_CHUNK_SIZE) {
-        RingBuffer_Read(&Dac_RingBuffer, &dac_tx_buffer[startIndex], AUDIO_CHUNK_SIZE);
+static void ProcessAmpData(int startIndex) {
+    if (RingBuffer_GetCount(&Amp_RingBuffer) >= AUDIO_CHUNK_SIZE) {
+        RingBuffer_Read(&Amp_RingBuffer, &amp_tx_buffer[startIndex], AUDIO_CHUNK_SIZE);
     } else {
         // Underflow: Output silence
-        memset(&dac_tx_buffer[startIndex], 0, AUDIO_CHUNK_SIZE * sizeof(int16_t));
+        memset(&amp_tx_buffer[startIndex], 0, AUDIO_CHUNK_SIZE * sizeof(int16_t));
     }
 }
 
 void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef *hi2s)
 {
-    if (hi2s->Instance == DAC_I2S) {
-        ProcessDacData(0);
+    if (hi2s->Instance == AMP_I2S) {
+        ProcessAmpData(0);
     }
 }
 
 void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef *hi2s)
 {
-    if (hi2s->Instance == DAC_I2S) {
-        ProcessDacData(AUDIO_CHUNK_SIZE);
+    if (hi2s->Instance == AMP_I2S) {
+        ProcessAmpData(AUDIO_CHUNK_SIZE);
     }
 }
 

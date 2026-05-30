@@ -36,14 +36,14 @@
 #define MIC_I2S_AF        GPIO_AF5_SPI2
 
 // --------------------------------------------------------
-// I2S3 (DAC Speaker TX)
+// I2S3 (AMP MAX98357A TX)
 // --------------------------------------------------------
-#define DAC_I2S           SPI3
-#define DAC_WS_PIN        GPIO_PIN_4
-#define DAC_WS_PORT       GPIOA
-#define DAC_SCK_PIN       GPIO_PIN_3
-#define DAC_SD_PIN        GPIO_PIN_5
-#define DAC_I2S_PORT      GPIOB
-#define DAC_I2S_AF        GPIO_AF6_SPI3
+#define AMP_I2S           SPI3
+#define AMP_WS_PIN        GPIO_PIN_4
+#define AMP_WS_PORT       GPIOA
+#define AMP_SCK_PIN       GPIO_PIN_3
+#define AMP_SD_PIN        GPIO_PIN_5
+#define AMP_I2S_PORT      GPIOB
+#define AMP_I2S_AF        GPIO_AF6_SPI3
 
 #endif // PIN_CONFIG_H

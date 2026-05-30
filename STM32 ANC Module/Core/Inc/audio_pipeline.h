@@ -12,10 +12,10 @@
 #define DMA_BUFFER_SIZE  (AUDIO_CHUNK_SIZE * 2)
 
 extern int32_t mic_rx_buffer[DMA_BUFFER_SIZE];
-extern int16_t dac_tx_buffer[DMA_BUFFER_SIZE];
+extern int16_t amp_tx_buffer[DMA_BUFFER_SIZE];
 
 extern RingBuffer_t Mic_RingBuffer;
-extern RingBuffer_t Dac_RingBuffer;
+extern RingBuffer_t Amp_RingBuffer;
 
 void AudioPipeline_Init(void);
 void AudioPipeline_Start(void);

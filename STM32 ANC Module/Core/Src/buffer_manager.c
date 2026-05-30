@@ -20,9 +20,9 @@ void BufferManager_Process(void)
         return; // Not enough data yet
     }
 
-    // Ensure we also have space in the DAC buffer before processing
-    if (RingBuffer_GetFreeSpace(&Dac_RingBuffer) < AUDIO_CHUNK_SIZE * 2) {
-        return; // Dac buffer is full, wait for DMA to drain it
+    // Ensure we also have space in the AMP buffer before processing
+    if (RingBuffer_GetFreeSpace(&Amp_RingBuffer) < AUDIO_CHUNK_SIZE * 2) {
+        return; // Amp buffer is full, wait for DMA to drain it
     }
 
     int16_t mic_chunk[AUDIO_CHUNK_SIZE];
@@ -64,6 +64,6 @@ void BufferManager_Process(void)
         out_chunk[i * 2 + 1] = (int16_t)out_r;
     }
 
-    // Push processed data to DAC ring buffer
-    RingBuffer_Write(&Dac_RingBuffer, out_chunk, AUDIO_CHUNK_SIZE * 2);
+    // Push processed data to AMP ring buffer
+    RingBuffer_Write(&Amp_RingBuffer, out_chunk, AUDIO_CHUNK_SIZE * 2);
 }
