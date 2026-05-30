@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define AUDIO_CHUNK_SIZE 64 // Number of samples per processing block
+#define AUDIO_CHUNK_SIZE 256 // Number of samples per processing block
 
 typedef int16_t AudioSample_t; // Standard 16-bit audio sample
 

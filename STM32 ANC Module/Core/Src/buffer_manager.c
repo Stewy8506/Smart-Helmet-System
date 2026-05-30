@@ -10,9 +10,6 @@ volatile bool is_anc_on = false; // False = Transparency, True = Prototype ANC
 #define ANC_GAIN 0.8f
 #define TRANSPARENCY_GAIN 1.0f
 
-static int16_t delay_buffer[64];
-static int delay_index = 0;
-
 void BufferManager_Process(void)
 {
     // Wait until we have a full chunk of Mic data ready

@@ -1,5 +1,6 @@
 #include "audio_types.h"
 #include <stdint.h>
+#include <stdbool.h>
 
 #define FIR_TAPS 64
 

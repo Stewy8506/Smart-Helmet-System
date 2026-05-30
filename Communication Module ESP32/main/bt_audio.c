@@ -114,7 +114,7 @@ void bt_audio_init(void (*callback)(const uint8_t *data, uint32_t len))
     }
 
     // Enable controller (ignore if already enabled)
-    ret = esp_bt_controller_enable(ESP_BT_MODE_BTDM);
+    ret = esp_bt_controller_enable(ESP_BT_MODE_CLASSIC_BT);
     if (ret != ESP_OK && ret != ESP_ERR_INVALID_STATE)
     {
         ESP_ERROR_CHECK(ret);
