@@ -12,9 +12,11 @@ graph TD
     
     Mic[INMP441 I2S Microphone] -- I2S Data --> STM32
     
-    STM32 -- I2S Mixed Audio --> DAC[PCM5102 I2S DAC]
+    STM32 -- I2S Mixed Audio --> AMP_L[MAX98357A I2S Amplifier - Left]
+    STM32 -- I2S Mixed Audio --> AMP_R[MAX98357A I2S Amplifier - Right]
     
-    DAC -- Analog Audio --> Amp[Audio Amplifier / Speakers]
+    AMP_L -- Analog Audio --> SPK_L[Left Speaker]
+    AMP_R -- Analog Audio --> SPK_R[Right Speaker]
     
     Button[ANC Toggle Button] -- GPIO --> STM32
 ```
@@ -41,17 +43,18 @@ Used to capture environmental noise for Transparency Mode and ANC.
 | `SCK` | `PB13` (I2S2 SCK) | Serial Clock |
 | `SD` | `PB15` (I2S2 SD) | Serial Data Output |
 
-### 3. PCM5102 DAC to STM32 (Speaker Output)
-Used to convert the mixed digital I2S signal back into analog audio for the speakers.
+### 3. MAX98357A Amplifiers to STM32 (Speaker Output)
+Used to directly convert the digital I2S signal to amplified analog audio for the speakers. **Note: You need TWO of these modules wired in parallel for stereo.**
 
-| PCM5102 Pin | STM32F401 Pin | Function |
+| MAX98357A Pin | STM32F401 Pin | Function |
 | :--- | :--- | :--- |
-| `VIN` | `5V` (or `3.3V`) | Power supply |
+| `VIN` | `5V` | Power supply for the amplifier |
 | `GND` | `GND` | Ground |
-| `LCK` | `PA4` (I2S3 WS) | Word Select (Left/Right Clock) |
-| `BCK` | `PB3` (I2S3 SCK) | Bit Clock |
-| `DIN` | `PB5` (I2S3 SD) | Data Input |
-| `SCK` | `GND` | System Clock (GND enables internal PLL on PCM5102) |
+| `LRC` | `PA4` (I2S3 WS) | Word Select (Left/Right Clock) |
+| `BCLK` | `PB3` (I2S3 SCK) | Bit Clock |
+| `DIN` | `PB5` (I2S3 SD) | Serial Data Input |
+| `SD_MODE` (Left) | `5V` | Connect directly to VIN to output Left channel |
+| `SD_MODE` (Right)| `5V` via 100kΩ Resistor | Connect to VIN through a 100kΩ resistor to output Right channel |
 
 ### 4. ANC Toggle Button
 Used to switch between Transparency Mode (hear surroundings) and ANC Mode (cancel noise).
@@ -61,6 +64,6 @@ Used to switch between Transparency Mode (hear surroundings) and ANC Mode (cance
 | `PA0` | `GND` | Triggers EXTI interrupt on Falling Edge. STM32 configures internal Pull-Up. |
 
 ## Power Considerations
-1. **Common Ground:** Ensure that the ESP32, STM32, Microphone, and DAC all share a common ground line to prevent noise and data corruption.
+1. **Common Ground:** Ensure that the ESP32, STM32, Microphone, and AMP all share a common ground line to prevent noise and data corruption.
 2. **Voltage Levels:** The STM32F401 and ESP32 are both 3.3V logic devices, so the UART and I2S lines can be connected directly without level shifters.
-3. **Audio Ground Loop:** If you use an external amplifier after the DAC, ensure it is properly isolated if powered from the same battery to avoid ground loop hum.
+3. **Amplifier Power:** The MAX98357A amplifiers can draw significant current when driving speakers. Ensure your 5V power supply (like a USB power bank or dedicated 5V regulator) can handle at least 1A to 2A to prevent brownouts.
