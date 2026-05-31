@@ -3,6 +3,7 @@
 #include "uart_parser.h"
 #include "ring_buffer.h"
 #include "anc_engine.h"
+#include <string.h>
 
 volatile bool is_anc_on = false; // False = Transparency, True = Prototype ANC
 
@@ -28,9 +29,25 @@ void BufferManager_Process(void)
     // Read Mic data
     RingBuffer_Read(&Mic_RingBuffer, mic_chunk, AUDIO_CHUNK_SIZE);
 
-    // Read Bluetooth data (if available, otherwise fill with 0)
+    // Read Bluetooth data
     int16_t bt_buffer[AUDIO_CHUNK_SIZE * 2]; // Stereo
-    int read_count = UartParser_ReadSamples(bt_buffer, AUDIO_CHUNK_SIZE * 2);
+    static bool bt_buffering = true;
+
+    if (bt_buffering) {
+        // Wait until we have at least 1024 samples (512 frames) to absorb jitter
+        if (RingBuffer_GetCount(&Uart_RingBuffer) > 1024) {
+            bt_buffering = false;
+        }
+    }
+
+    int read_count = 0;
+    if (!bt_buffering) {
+        read_count = UartParser_ReadSamples(bt_buffer, AUDIO_CHUNK_SIZE * 2);
+        if (read_count < AUDIO_CHUNK_SIZE * 2) {
+            // Buffer completely underrun, start buffering again
+            bt_buffering = true;
+        }
+    }
     
     // Pad with silence if not enough BT data
     for (int i = read_count; i < AUDIO_CHUNK_SIZE * 2; i++) {

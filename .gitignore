@@ -35,3 +35,8 @@ Release/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# ADAS exclusions
+ADAS/.venv/
+ADAS/*.mp4
+ADAS/*.pt
