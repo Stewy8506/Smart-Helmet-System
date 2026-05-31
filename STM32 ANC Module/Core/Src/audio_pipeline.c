@@ -73,7 +73,11 @@ static void ProcessMicData(int startIndex) {
     for (int i = 0; i < AUDIO_CHUNK_SIZE; i++) {
         // Extract 16-bit MSB from 32-bit I2S data.
         // We multiply i * 2 to extract ONLY the Left channel (even indices).
-        extracted[i] = (int16_t)(mic_rx_buffer[startIndex + (i * 2)] >> 16);
+        // Because DMA is now set to HALFWORD (16-bit) to match the SPI->DR register size,
+        // the DMA performs two 16-bit writes to memory per 32-bit sample.
+        // Since STM32 is Little Endian, the first 16-bit write (which is the MSB from I2S)
+        // lands in the lower 16 bits (bits 0-15) of the int32_t element in mic_rx_buffer!
+        extracted[i] = (int16_t)(mic_rx_buffer[startIndex + (i * 2)] & 0xFFFF);
     }
     RingBuffer_Write(&Mic_RingBuffer, extracted, AUDIO_CHUNK_SIZE);
 }

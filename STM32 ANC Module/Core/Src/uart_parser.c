@@ -43,9 +43,11 @@ void UartParser_Process(void) {
             uint8_t l1 = uart_dma_buffer[(uart_process_ptr + 3) % UART_DMA_BUF_SIZE];
             uint16_t len = l0 | (l1 << 8); // length in bytes
 
-            // Sanity check length
-            if (len > 2048) {
-                // Invalid length, probably lost sync
+            // STRICT VALIDATION: ESP32 only sends len=512 for audio, len=4 for config
+            // This prevents the parser from accidentally syncing to random audio data!
+            if ((sync == UART_SYNC_WORD_AUDIO && len != 512) || 
+                (sync == UART_SYNC_WORD_CONFIG && len != 4)) {
+                // False positive sync word, ignore it and slide window by 1 byte
                 uart_process_ptr = (uart_process_ptr + 1) % UART_DMA_BUF_SIZE;
                 continue;
             }
