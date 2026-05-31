@@ -10,10 +10,11 @@ A real-time crash detection system built on the **Seeed Studio XIAO ESP32S3** us
 - [Hardware Components](#hardware-components)
 - [Wiring & Pinout](#wiring--pinout)
 - [Software Architecture](#software-architecture)
-- [Source File Reference](#source-file-reference)
+- [Detailed Module Descriptions](#detailed-module-descriptions)
 - [Crash Detection Algorithm](#crash-detection-algorithm)
 - [Wi-Fi Provisioning (SmartConfig)](#wi-fi-provisioning-smartconfig)
 - [SOS Alert System](#sos-alert-system)
+- [Bluetooth Low Energy (BLE)](#bluetooth-low-energy-ble)
 - [OLED Display](#oled-display)
 - [Battery Monitoring](#battery-monitoring)
 - [Two-ESP32 GPIO Handshake](#two-esp32-gpio-handshake)
@@ -139,22 +140,21 @@ All I2C devices share the same bus in parallel:
 
 ---
 
-## Source File Reference
+## Detailed Module Descriptions
 
-| File | Purpose |
-|------|---------|
-| `main.c` | Entry point. Initializes all peripherals, creates all FreeRTOS tasks, contains the supervisor crash-decision logic. |
-| `i2c_bus.c/h` | Shared I2C bus driver with mutex protection for thread-safe multi-sensor access. |
-| `lsm6dso.c/h` | IMU driver. Reads accelerometer magnitude for impact detection. |
-| `bmp581.c/h` | Barometric pressure sensor. Converts pressure to altitude and tracks drops. |
-| `mmc56x3.c/h` | Magnetometer driver. Computes heading/orientation and detects magnetic anomalies. |
-| `max30102.c/h` | Pulse oximeter. Reads IR samples and computes BPM. |
-| `tmp117.c/h` | High-accuracy temperature sensor driver. |
-| `display_oled.c/h` | SSD1306 OLED driver with built-in 5×7 font and 2× scaled text rendering. |
-| `battery_monitor.c/h` | ADC-based battery voltage reader. Maps 2S Li-ion voltage (6.4–8.4V) to 0–100%. |
-| `network_sos.c/h` | Wi-Fi (SmartConfig) and HTTP client. Sends JSON SOS alerts to a backend server. |
-| `uart_comm.c/h` | UART serial packet transmitter for crash/pulse data. |
-| `CMakeLists.txt` | Build configuration. Lists all source files and ESP-IDF component dependencies. |
+- **`main.c`**: The core entry point. Initializes all peripherals, spins up FreeRTOS tasks, and contains the supervisor crash-decision logic that fuses sensor data.
+- **`ble_manager.c/h`**: Implements Bluetooth Low Energy (BLE) functionality using the NimBLE stack. It creates a GATT server to stream real-time IMU data and crash status to a connected mobile application.
+- **`i2c_bus.c/h`**: Shared I2C bus driver equipped with mutex protection. Ensures thread-safe access when multiple sensor tasks attempt to read data concurrently.
+- **`lsm6dso.c/h`**: Driver for the IMU. Continuously reads accelerometer data to detect impacts and sudden shocks.
+- **`bmp581.c/h`**: Driver for the Barometric pressure sensor. Converts ambient pressure to altitude to track rapid altitude drops indicative of a fall.
+- **`mmc56x3.c/h`**: Magnetometer driver. Computes spatial heading and detects sudden magnetic field anomalies.
+- **`max30102.c/h`**: Pulse oximeter module. Scans IR samples and calculates the rider's heart rate (BPM).
+- **`tmp117.c/h`**: Driver for the high-accuracy temperature sensor.
+- **`display_oled.c/h`**: OLED driver for the SSD1306. Handles rendering the UI with a built-in 5×7 font and 2× scaled text to show the helmet's status, crash state, and battery.
+- **`battery_monitor.c/h`**: ADC-based battery voltage reader. Safely maps the 2S Li-ion pack voltage (6.4V–8.4V) through a voltage divider to a 0–100% reading.
+- **`network_sos.c/h`**: Wi-Fi configuration (via SmartConfig) and HTTP client. Responsible for sending JSON-formatted SOS alerts to a backend server when a crash is confirmed.
+- **`uart_comm.c/h`**: UART serial packet transmitter for passing crash and pulse data sequentially.
+- **`CMakeLists.txt`**: Build configuration file detailing source files and ESP-IDF component dependencies.
 
 ---
 
@@ -237,6 +237,34 @@ Edit the `SOS_API_URL` macro in `network_sos.c`:
 ```
 
 The companion app should run an HTTP server on the same Wi-Fi network that listens for this POST request and triggers notifications to emergency contacts.
+
+---
+
+## Bluetooth Low Energy (BLE)
+
+The helmet includes a BLE GATT server (handled by `ble_manager.c`) using the **NimBLE stack** to broadcast real-time telemetry and crash status.
+
+- **Device Name:** `SmartHelmet`
+- **Primary Service UUID:** `19B10000-E8F2-537E-4F6C-D104768A1214`
+
+### Characteristics
+
+1. **IMU Telemetry** (`19B10001-E8F2-537E-4F6C-D104768A1214`)
+   - **Properties:** Read, Notify
+   - **Update Rate:** 10 Hz
+   - **Format:** String `X.XX,Y.YY,Z.ZZ` (Accelerometer data)
+
+2. **Crash Status** (`19B10002-E8F2-537E-4F6C-D104768A1214`)
+   - **Properties:** Read, Notify
+   - **Update Rate:** On change
+   - **Format:** String representing the integer status level:
+     - `0`: Normal
+     - `1`: Warning (Minor Impact)
+     - `2`: Shock Detected
+     - `3`: Vital Crash (Impact + Abnormal Heart Rate)
+     - `4`: Fall Confirmed (Impact + Altitude Drop)
+
+This allows a paired mobile app to render live visualization and react instantly to crash events, completely independent of the Wi-Fi network.
 
 ---
 
