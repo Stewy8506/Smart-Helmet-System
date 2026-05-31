@@ -39,8 +39,15 @@ void FIR_SetCoefficients(uint32_t sample_rate, bool is_anc_on) {
     }
 }
 
-// Basic FIR processing (In production, replace with arm_fir_q15 from CMSIS-DSP)
 void FIR_Process(const int16_t* input, int16_t* output, uint32_t length) {
+    // Fast path for Transparency Mode (prevents CPU overload!)
+    if (current_coeffs == trans_coeffs) {
+        for (uint32_t i = 0; i < length; i++) {
+            output[i] = input[i];
+        }
+        return;
+    }
+
     // Very naive implementation for placeholder
     // A real implementation requires a state buffer
     for (uint32_t i = 0; i < length; i++) {

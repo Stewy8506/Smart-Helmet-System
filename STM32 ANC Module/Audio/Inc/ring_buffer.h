@@ -6,13 +6,12 @@
 #include <stddef.h>
 
 /* Ring buffer size */
-#define RING_BUFFER_SIZE 2048 
+#define RING_BUFFER_SIZE 8192 
 
 typedef struct {
     int16_t buffer[RING_BUFFER_SIZE];
-    uint32_t head;
-    uint32_t tail;
-    uint32_t count;
+    volatile uint32_t head;
+    volatile uint32_t tail;
 } RingBuffer_t;
 
 /* Initialize the ring buffer */

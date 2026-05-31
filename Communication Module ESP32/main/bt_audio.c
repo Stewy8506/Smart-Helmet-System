@@ -56,11 +56,9 @@ static void a2dp_event_handler(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *par
                 sample_rate = 44100;
             }
             
-            ESP_LOGI(TAG, "Negotiated sample rate: %lu Hz", sample_rate);
-            
-            // Notify STM32 via UART config packet
-            extern void uart_stream_send_config(uint32_t sample_rate);
-            uart_stream_send_config(sample_rate);
+            ESP_LOGI(TAG, "Sample rate configured: %lu", sample_rate);
+        
+        // (Config packet disabled to lock STM32 to 44.1kHz and prevent DMA restarts)
         }
         break;
 

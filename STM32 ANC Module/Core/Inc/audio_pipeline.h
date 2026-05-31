@@ -19,6 +19,5 @@ extern RingBuffer_t Amp_RingBuffer;
 
 void AudioPipeline_Init(void);
 void AudioPipeline_Start(void);
-void AudioPipeline_SetSampleRate(uint32_t sample_rate);
 
 #endif // AUDIO_PIPELINE_H

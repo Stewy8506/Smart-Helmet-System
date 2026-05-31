@@ -38,15 +38,15 @@ void UartParser_Process(void) {
         uint8_t b1 = uart_dma_buffer[(uart_process_ptr + 1) % UART_DMA_BUF_SIZE];
         uint16_t sync = b0 | (b1 << 8);
 
-        if (sync == UART_SYNC_WORD_AUDIO || sync == UART_SYNC_WORD_CONFIG) {
+        if (sync == UART_SYNC_WORD_AUDIO) {
             uint8_t l0 = uart_dma_buffer[(uart_process_ptr + 2) % UART_DMA_BUF_SIZE];
             uint8_t l1 = uart_dma_buffer[(uart_process_ptr + 3) % UART_DMA_BUF_SIZE];
             uint16_t len = l0 | (l1 << 8); // length in bytes
 
-            // STRICT VALIDATION: ESP32 only sends len=512 for audio, len=4 for config
+            // STRICT VALIDATION: ESP32 only sends len=512 for audio.
+            // (We completely disabled config packets to lock it to 44.1kHz and prevent DMA restarts).
             // This prevents the parser from accidentally syncing to random audio data!
-            if ((sync == UART_SYNC_WORD_AUDIO && len != 512) || 
-                (sync == UART_SYNC_WORD_CONFIG && len != 4)) {
+            if (sync == UART_SYNC_WORD_AUDIO && len != 512) {
                 // False positive sync word, ignore it and slide window by 1 byte
                 uart_process_ptr = (uart_process_ptr + 1) % UART_DMA_BUF_SIZE;
                 continue;
@@ -67,16 +67,6 @@ void UartParser_Process(void) {
                     sample = (int16_t)(d0 | (d1 << 8));
                     RingBuffer_Write(&Uart_RingBuffer, &sample, 1);
                 }
-            } else if (sync == UART_SYNC_WORD_CONFIG) {
-                if (len == 4) {
-                    uint8_t d0 = uart_dma_buffer[(uart_process_ptr + 4) % UART_DMA_BUF_SIZE];
-                    uint8_t d1 = uart_dma_buffer[(uart_process_ptr + 5) % UART_DMA_BUF_SIZE];
-                    uint8_t d2 = uart_dma_buffer[(uart_process_ptr + 6) % UART_DMA_BUF_SIZE];
-                    uint8_t d3 = uart_dma_buffer[(uart_process_ptr + 7) % UART_DMA_BUF_SIZE];
-                    uint32_t sample_rate = d0 | (d1 << 8) | (d2 << 16) | (d3 << 24);
-                    
-                    AudioPipeline_SetSampleRate(sample_rate);
-                }
             }
 
             uart_process_ptr = (uart_process_ptr + 4 + len) % UART_DMA_BUF_SIZE;
@@ -87,13 +77,17 @@ void UartParser_Process(void) {
 }
 
 int UartParser_ReadSamples(int16_t *out_buffer, int num_samples) {
+    // Ensure we only ever read an EVEN number of samples (complete Left/Right pairs).
+    // If we read an odd number, the L/R channels will become permanently misaligned!
+    num_samples &= ~1;
+
     if (RingBuffer_GetCount(&Uart_RingBuffer) >= num_samples) {
         RingBuffer_Read(&Uart_RingBuffer, out_buffer, num_samples);
         return num_samples;
     }
     
-    // Read whatever is available
-    int avail = RingBuffer_GetCount(&Uart_RingBuffer);
+    // Read whatever is available, rounded down to the nearest even number
+    int avail = RingBuffer_GetCount(&Uart_RingBuffer) & ~1;
     if (avail > 0) {
         RingBuffer_Read(&Uart_RingBuffer, out_buffer, avail);
     }

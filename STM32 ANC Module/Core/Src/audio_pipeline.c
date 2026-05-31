@@ -31,42 +31,11 @@ void AudioPipeline_Init(void)
 void AudioPipeline_Start(void)
 {
     HAL_UART_Receive_DMA(&huart1, uart_dma_buffer, 4096); 
-    HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)mic_rx_buffer, MIC_DMA_BUFFER_SIZE);
+    HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)mic_rx_buffer, MIC_DMA_BUFFER_SIZE * 2);
     HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)amp_tx_buffer, AMP_DMA_BUFFER_SIZE);
 }
 
-void AudioPipeline_SetSampleRate(uint32_t sample_rate)
-{
-    uint32_t i2s_freq = I2S_AUDIOFREQ_44K;
-    if (sample_rate == 48000) {
-        i2s_freq = I2S_AUDIOFREQ_48K;
-    }
 
-    // Stop streams
-    HAL_I2S_DMAStop(&hi2s2);
-    HAL_I2S_DMAStop(&hi2s3);
-
-    // Re-init with new freq
-    HAL_I2S_DeInit(&hi2s2);
-    HAL_I2S_DeInit(&hi2s3);
-    
-    hi2s2.Init.AudioFreq = i2s_freq;
-    HAL_I2S_Init(&hi2s2);
-    hi2s3.Init.AudioFreq = i2s_freq;
-    HAL_I2S_Init(&hi2s3);
-
-    // Clear buffers
-    RingBuffer_Clear(&Mic_RingBuffer);
-    RingBuffer_Clear(&Amp_RingBuffer);
-
-    // Notify ANC engine (TODO: switch coefficients)
-    // extern void ANC_SetSampleRate(uint32_t sr);
-    // ANC_SetSampleRate(sample_rate);
-
-    // Restart
-    HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)mic_rx_buffer, MIC_DMA_BUFFER_SIZE);
-    HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)amp_tx_buffer, AMP_DMA_BUFFER_SIZE);
-}
 
 static void ProcessMicData(int startIndex) {
     int16_t extracted[AUDIO_CHUNK_SIZE];

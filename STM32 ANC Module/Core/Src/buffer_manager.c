@@ -34,8 +34,8 @@ void BufferManager_Process(void)
     static bool bt_buffering = true;
 
     if (bt_buffering) {
-        // Wait until we have at least 1024 samples (512 frames) to absorb jitter
-        if (RingBuffer_GetCount(&Uart_RingBuffer) > 1024) {
+        // Wait until we have at least 4096 samples (2048 frames / ~46ms) to absorb jitter
+        if (RingBuffer_GetCount(&Uart_RingBuffer) > 4096) {
             bt_buffering = false;
         }
     }
