@@ -39,9 +39,9 @@ Used to capture environmental noise for Transparency Mode and ANC.
 | `VDD` | `3.3V` | Power supply |
 | `GND` | `GND` | Ground |
 | `L/R` | `GND` | Sets mic to output on Left Channel |
-| `WS` | `PA4` (I2S3 WS) | Word Select (Left/Right Clock) |
-| `SCK` | `PB3` (I2S3 SCK) | Serial Clock |
-| `SD` | `PB5` (I2S3 SD) | Serial Data Output |
+| `WS` | `PB12` (I2S2 WS) | Word Select (Left/Right Clock) |
+| `SCK` | `PB13` (I2S2 SCK) | Serial Clock |
+| `SD` | `PB15` (I2S2 SD) | Serial Data Output |
 
 ### 3. MAX98357A Amplifiers to STM32 (Speaker Output)
 Used to directly convert the digital I2S signal to amplified analog audio for the speakers. **Note: You need TWO of these modules wired in parallel for stereo.**
@@ -50,9 +50,9 @@ Used to directly convert the digital I2S signal to amplified analog audio for th
 | :--- | :--- | :--- |
 | `VIN` | `5V` | Power supply for the amplifier |
 | `GND` | `GND` | Ground |
-| `LRC` | `PB12` (I2S2 WS) | Word Select (Left/Right Clock) |
-| `BCLK` | `PB13` (I2S2 SCK) | Bit Clock |
-| `DIN` | `PB15` (I2S2 SD) | Serial Data Input |
+| `LRC` | `PA4` (I2S3 WS) | Word Select (Left/Right Clock) |
+| `BCLK` | `PB3` (I2S3 SCK) | Bit Clock |
+| `DIN` | `PB5` (I2S3 SD) | Serial Data Input |
 | `SD_MODE` (Left) | `5V` | Connect directly to VIN to output Left channel |
 | `SD_MODE` (Right)| `5V` via 100kΩ Resistor | Connect to VIN through a 100kΩ resistor to output Right channel |
 

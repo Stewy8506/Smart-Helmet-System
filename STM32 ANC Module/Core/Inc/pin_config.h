@@ -26,25 +26,24 @@
 #define BT_UART_AF        GPIO_AF7_USART1
 
 // --------------------------------------------------------
-// I2S3 (INMP441 Microphone RX)
+// I2S2 (INMP441 Microphone RX)
 // --------------------------------------------------------
-#define MIC_I2S           SPI3
-#define MIC_WS_PIN        GPIO_PIN_4
-#define MIC_WS_PORT       GPIOA
-#define MIC_SCK_PIN       GPIO_PIN_3
-#define MIC_SD_PIN        GPIO_PIN_5
+#define MIC_I2S           SPI2
+#define MIC_WS_PIN        GPIO_PIN_12
+#define MIC_SCK_PIN       GPIO_PIN_13
+#define MIC_SD_PIN        GPIO_PIN_15
 #define MIC_I2S_PORT      GPIOB
-#define MIC_I2S_AF        GPIO_AF6_SPI3
+#define MIC_I2S_AF        GPIO_AF5_SPI2
 
 // --------------------------------------------------------
-// I2S2 (AMP MAX98357A TX)
+// I2S3 (AMP MAX98357A TX)
 // --------------------------------------------------------
-#define AMP_I2S           SPI2
-#define AMP_WS_PIN        GPIO_PIN_12
-#define AMP_WS_PORT       GPIOB
-#define AMP_SCK_PIN       GPIO_PIN_13
-#define AMP_SD_PIN        GPIO_PIN_15
+#define AMP_I2S           SPI3
+#define AMP_WS_PIN        GPIO_PIN_4
+#define AMP_WS_PORT       GPIOA
+#define AMP_SCK_PIN       GPIO_PIN_3
+#define AMP_SD_PIN        GPIO_PIN_5
 #define AMP_I2S_PORT      GPIOB
-#define AMP_I2S_AF        GPIO_AF5_SPI2
+#define AMP_I2S_AF        GPIO_AF6_SPI3
 
 #endif // PIN_CONFIG_H

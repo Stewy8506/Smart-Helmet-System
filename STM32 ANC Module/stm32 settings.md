@@ -50,26 +50,7 @@ Configure the **ANC Toggle Button**:
   - **Mode:** Circular
   - **Data Width:** Byte (Peripheral) / Byte (Memory)
 
-### I2S2 (AMP MAX98357A TX)
-- **Mode:** Master Transmit
-- **Parameter Settings:**
-  - **I2S Standard:** Philips
-  - **Data and Frame Format:** 16 Bits Data on 16 Bits Frame
-  - **Audio Frequency:** 44.1 KHz (Code adjusts this dynamically to 48 KHz if needed)
-  - **Clock Polarity:** Low
-- **GPIO Settings:**
-  - **I2S2_WS:** `PB12` (Alternate Function: `GPIO_AF5_SPI2`)
-  - **I2S2_CK:** `PB13` (Alternate Function: `GPIO_AF5_SPI2`)
-  - **I2S2_SD:** `PB15` (Alternate Function: `GPIO_AF5_SPI2`)
-- **DMA Settings:**
-  - Add **SPI2_TX**
-  - **Stream:** DMA1 Stream 4
-  - **Direction:** Memory To Peripheral
-  - **Priority:** Very High
-  - **Mode:** Circular
-  - **Data Width:** Half Word (Peripheral) / Half Word (Memory)
-
-### I2S3 (INMP441 Microphone RX)
+### I2S2 (INMP441 Microphone RX)
 - **Mode:** Master Receive
 - **Parameter Settings:**
   - **I2S Standard:** Philips
@@ -77,16 +58,35 @@ Configure the **ANC Toggle Button**:
   - **Audio Frequency:** 44.1 KHz (Code adjusts this dynamically to 48 KHz if needed)
   - **Clock Polarity:** Low
 - **GPIO Settings:**
-  - **I2S3_WS:** `PA4` (Alternate Function: `GPIO_AF6_SPI3`)
-  - **I2S3_CK:** `PB3` (Alternate Function: `GPIO_AF6_SPI3`)
-  - **I2S3_SD:** `PB5` (Alternate Function: `GPIO_AF6_SPI3`)
+  - **I2S2_WS:** `PB12` (Alternate Function: `GPIO_AF5_SPI2`)
+  - **I2S2_CK:** `PB13` (Alternate Function: `GPIO_AF5_SPI2`)
+  - **I2S2_SD:** `PB15` (Alternate Function: `GPIO_AF5_SPI2`)
 - **DMA Settings:**
-  - Add **SPI3_RX**
-  - **Stream:** DMA1 Stream 0 or 2 (CubeMX default is fine)
+  - Add **SPI2_RX**
+  - **Stream:** DMA1 Stream 3
   - **Direction:** Peripheral To Memory
   - **Priority:** High
   - **Mode:** Circular
   - **Data Width:** Word (Peripheral) / Word (Memory)
+
+### I2S3 (AMP MAX98357A TX)
+- **Mode:** Master Transmit
+- **Parameter Settings:**
+  - **I2S Standard:** Philips
+  - **Data and Frame Format:** 16 Bits Data on 16 Bits Frame
+  - **Audio Frequency:** 44.1 KHz (Code adjusts this dynamically to 48 KHz if needed)
+  - **Clock Polarity:** Low
+- **GPIO Settings:**
+  - **I2S3_WS:** `PA4` (Alternate Function: `GPIO_AF6_SPI3`)
+  - **I2S3_CK:** `PB3` (Alternate Function: `GPIO_AF6_SPI3`)
+  - **I2S3_SD:** `PB5` (Alternate Function: `GPIO_AF6_SPI3`)
+- **DMA Settings:**
+  - Add **SPI3_TX**
+  - **Stream:** DMA1 Stream 5
+  - **Direction:** Memory To Peripheral
+  - **Priority:** Very High
+  - **Mode:** Circular
+  - **Data Width:** Half Word (Peripheral) / Half Word (Memory)
 
 ---
 
@@ -98,8 +98,8 @@ In the **System Core > NVIC** section (or the NVIC tab for each peripheral), ena
 | :--- | :---: | :---: |
 | EXTI line0 interrupt | Yes | 2 |
 | DMA2 stream2 global interrupt (USART1_RX) | Yes | 1 |
-| DMA1 stream4 global interrupt (I2S2_TX) | Yes | 1 |
-| DMA1 stream0 global interrupt (I2S3_RX) | Yes | 1 |
+| DMA1 stream3 global interrupt (I2S2_RX) | Yes | 1 |
+| DMA1 stream5 global interrupt (I2S3_TX) | Yes | 1 |
 
 > **Priority Notes:** Your code relies on I2S and UART DMA interrupts having a higher priority (1) than the GPIO Button interrupt (2) so audio streaming isn't preempted by a button press.
 
