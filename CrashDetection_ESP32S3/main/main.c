@@ -13,6 +13,7 @@
 #include "battery_monitor.h"
 #include "display_oled.h"
 #include "network_sos.h"
+#include "ble_manager.h"
 
 #include "driver/gpio.h"
 
@@ -362,6 +363,7 @@ void app_main(void) {
   uart_comm_init();
   battery_monitor_init();
   display_oled_init();
+  ble_manager_init();
 
   xTaskCreate(imu_task, "IMU", 4096, NULL, 4, NULL);
   xTaskCreate(barometer_task, "BARO", 4096, NULL, 3, NULL);
